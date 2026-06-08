@@ -7,8 +7,8 @@ from tacnode_client import TacnodeClient
 
 def main():
     client = TacnodeClient(
-        endpoint="http://tacnode-center-00.icc.kcprd.com",
-        region_endpoint="http://tacnode-region-00.icc.kcprd.com",
+        endpoint="http://$ENDPOINT",  # replace it with your own
+        region_endpoint="http://$REGION_ENDPOINT",  # replace it with your own
         username="",
         password="",
     )
