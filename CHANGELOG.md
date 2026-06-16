@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased] — since c2f9d23
+## v2606 — since c2f9d23
 
 ### Authentication
 
