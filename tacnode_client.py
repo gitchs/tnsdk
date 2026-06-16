@@ -90,8 +90,12 @@ class TacnodeClient:
             and not self._sso_completed
         ):
             logger.debug("region %s, falling back to SSO", resp.status_code)
-            self._do_sso()
-            resp = self._do_request(method, url, **kwargs)
+            try:
+                self._do_sso()
+                resp = self._do_request(method, url, **kwargs)
+            except Exception as sso_err:
+                logger.warning("SSO fallback failed: %s", sso_err)
+                self._sso_completed = True  # don't retry on this deployment
         if not resp.ok:
             logger.error(
                 "HTTP %s %s: %s", resp.status_code, resp.reason, resp.text[:500]
@@ -397,18 +401,32 @@ class TacnodeClient:
         self,
         context_lake_id: str,
         instance_id: str,
-        blocking: bool = False,
+        blocking: bool = True,
     ):
         """Resume a paused nodegroup.
+
+        Nodegroup must be in PAUSED state, or a RuntimeError is raised.
 
         Args:
             context_lake_id: ID of the context lake.
             instance_id: ID of the nodegroup instance.
             blocking: If True, poll until state reaches RUNNING (max 15 min).
+                Defaults to True.
 
         Returns:
-            Parsed JSON response from the state-change API.
+            Nodegroup model if blocking, otherwise None.
+
+        Raises:
+            RuntimeError: If the nodegroup is not in a resumable state.
         """
+        ng = self.get_nodegroup(context_lake_id, instance_id)
+        if ng.state == "RUNNING":
+            logger.debug("nodegroup %s already RUNNING", instance_id)
+            return ng if blocking else None
+        if ng.state != "PAUSED":
+            raise RuntimeError(
+                f"nodegroup {instance_id} is {ng.state}, must be PAUSED to resume"
+            )
         return self._set_nodegroup_state(
             context_lake_id, instance_id, "RUNNING", blocking
         )
@@ -417,18 +435,29 @@ class TacnodeClient:
         self,
         context_lake_id: str,
         instance_id: str,
-        blocking: bool = False,
+        blocking: bool = True,
     ):
         """Pause a running nodegroup.
+
+        Nodegroup must be in RUNNING state, or a RuntimeError is raised.
 
         Args:
             context_lake_id: ID of the context lake.
             instance_id: ID of the nodegroup instance.
             blocking: If True, poll until state reaches PAUSED (max 15 min).
+                Defaults to True.
 
         Returns:
-            Parsed JSON response from the state-change API.
+            Nodegroup model if blocking, otherwise None.
+
+        Raises:
+            RuntimeError: If the nodegroup is not in RUNNING state.
         """
+        ng = self.get_nodegroup(context_lake_id, instance_id)
+        if ng.state != "RUNNING":
+            raise RuntimeError(
+                f"nodegroup {instance_id} is {ng.state}, must be RUNNING to pause"
+            )
         return self._set_nodegroup_state(
             context_lake_id, instance_id, "PAUSED", blocking
         )
@@ -450,7 +479,7 @@ class TacnodeClient:
             headers={"IgnoreError": "IgnoreError"},
         )
         if not blocking:
-            return resp.json()
+            return None
 
         deadline = time.time() + 900  # 15 minutes
         while time.time() < deadline:
@@ -475,7 +504,7 @@ class TacnodeClient:
         context_lake_id: str,
         instance_id: str,
         target_size: int,
-        blocking: bool = False,
+        blocking: bool = True,
     ):
         """Resize a nodegroup to the target size.
 
@@ -486,9 +515,10 @@ class TacnodeClient:
             instance_id: ID of the nodegroup instance.
             target_size: Desired number of nodes.
             blocking: If True, poll until size reaches target (max 15 min).
+                Defaults to True.
 
         Returns:
-            Nodegroup model if blocking, otherwise parsed JSON response.
+            Nodegroup model if blocking, otherwise None.
 
         Raises:
             RuntimeError: If the nodegroup is not in RUNNING state.
@@ -508,7 +538,7 @@ class TacnodeClient:
             headers={"IgnoreError": "IgnoreError"},
         )
         if not blocking:
-            return resp.json()
+            return None
 
         deadline = time.time() + 900  # 15 minutes
         while time.time() < deadline:
