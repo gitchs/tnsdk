@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 import json
 import logging
+import os
 
 from tacnode_client import TacnodeClient
 
 
 def main():
     client = TacnodeClient(
-        endpoint="http://$ENDPOINT",  # replace it with your own
-        region_endpoint="http://$REGION_ENDPOINT",  # replace it with your own
-        username="",
-        password="",
+        endpoint=os.environ["TACNODE_ENDPOINT"],
+        region_endpoint=os.environ["TACNODE_REGION_ENDPOINT"],
+        username=os.environ["TACNODE_USERNAME"],
+        password=os.environ["TACNODE_PASSWORD"],
     )
     client.login()
     logging.info("logging success")
